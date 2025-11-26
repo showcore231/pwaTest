@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>PWA Auditoría Vehicular</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#004080">
+
+  <!-- Estilos y librerías -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver"></script>
+
+  <style>
+    body { background-color: #f5f5f5; }
+    header { background-color: #004080; padding: 20px; text-align: center; color: white; }
+    h1 { margin: 10px 0; font-size: 1.8rem; }
+    .btn-primary { background-color: #ff6600; border: none; }
+    .btn-secondary { background-color: #004080; color: white; }
+    .btn-danger { background-color: #cc0000; color: white; }
+    .card { margin-bottom: 20px; }
+    img.preview { max-width: 100px; margin: 5px; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="icons/logo-ofs.png" alt="Logo OFS Tlaxcala" style="max-height:80px;">
+    <h1>Auditoría Vehicular</h1>
+  </header>
+
+  <div class="container mt-4">
+    <!-- Login -->
+    <div id="login" class="card shadow">
+      <div class="card-body text-center">
+        <h2 style="color:#004080;">Bienvenido</h2>
+        <p class="mb-3">Ingrese sus credenciales para acceder al sistema</p>
+        <input class="form-control mb-2" type="text" id="usuario" placeholder="Usuario">
+        <input class="form-control mb-2" type="password" id="contrasena" placeholder="Contraseña">
+        <button class="btn w-100" style="background-color:#ff6600; color:white;" onclick="login()">Entrar</button>
+      </div>
+    </div>
+
+    <!-- Interfaz Coordinador -->
+    <div id="coordinador" style="display:none">
+      <button class="btn btn-secondary mb-3" onclick="logout()">Regresar</button>
+      <div class="card shadow">
+        <div class="card-body">
+          <h2 style="color:#004080;">Carga de Vehículos</h2>
+          <p>Suba la plantilla Excel con los vehículos a inspeccionar.</p>
+          <input type="file" id="excelVehiculos" accept=".xlsx" class="form-control mb-2">
+          <button class="btn btn-primary" onclick="cargarExcelVehiculos()">Cargar Excel</button>
+        </div>
+      </div>
+      <button class="btn btn-success w-100 mb-4" onclick="exportarExcelConImagenes()">Exportar Inspección Completa</button>
+      <button class="btn btn-danger w-100 mb-4" onclick="borrarTodo()">Borrar toda la información</button>
+      <div id="listaVehiculos"></div>
+    </div>
+
+    <!-- Interfaz Auditor -->
+    <div id="auditor" style="display:none">
+      <button class="btn btn-secondary mb-3" onclick="logout()">Regresar</button>
+      <div class="card shadow">
+        <div class="card-body">
+          <h2 style="color:#004080;">Bitácora de Parque Vehicular</h2>
+          <form id="form-bitacora">
+            <label>Municipio:</label>
+<input class="form-control" type="text" id="municipio" disabled>
+<label>Oficio Auditoría:</label>
+<input class="form-control" type="text" id="oficio" disabled>
+            <label>Vehículo:</label>
+            <select class="form-select" id="vehiculoSelect"></select>
+            <label>Resguardante:</label>
+            <input class="form-control" type="text" id="resguardante">
+            <label>Localizado:</label>
+            <select class="form-select" id="localizado"><option>Sí</option><option>No</option></select>
+            <label>Odómetro:</label>
+            <select class="form-select" id="odometro"><option>Sí</option><option>No</option></select>
+            <label>Estado Físico:</label>
+            <select class="form-select" id="estado"><option>Bueno</option><option>Regular</option><option>Malo</option></select>
+            <label>Funcionando:</label>
+            <select class="form-select" id="funcionando"><option>Sí</option><option>No</option></select>
+            <label>Desde qué fecha no funciona:</label>
+            <input class="form-control" type="date" id="fechaNoFunciona">
+            <label>Observaciones:</label>
+            <textarea class="form-control" id="observaciones"></textarea>
+<button class="btn btn-primary mt-3" type="submit">Guardar Bitacoras completo</button>
+            
+          </form>
+        </div>
+      </div>
+
+      <div class="card shadow">
+        <div class="card-body">
+          <h2 style="color:#004080;">Reporte Fotográfico</h2>
+          <form id="form-fotografico">
+            <label>Auditor Responsable:</label>
+            <input class="form-control" type="text" id="auditorFoto" required>
+            <label>Fotos:</label>
+            <input class="form-control" type="file" id="fotoSerie" accept="image/*" capture="environment">
+            <input class="form-control" type="file" id="fotoPlacas" accept="image/*" capture="environment">
+            <input class="form-control" type="file" id="fotoFrente" accept="image/*" capture="environment">
+            <input class="form-control" type="file" id="fotoTrasera" accept="image/*" capture="environment">
+            <label>Conclusiones:</label>
+            <textarea class="form-control" id="conclusionesFoto"></textarea>
+            
+          </form>
+        </div>
+      </div>
+
+      <button class="btn btn-success w-100 mb-4" onclick="exportarExcelConImagenes()">Exportar Inspección Completa</button>
+      <button class="btn btn-danger w-100 mb-4" onclick="borrarTodo()">Borrar toda la información</button>
+
+      <div id="listaBitacora"></div>
+      <div id="listaReportes"></div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script>
+    // Inicializar IndexedDB
+    let db;
+    const request = indexedDB.open("AuditoriaVehicularDB", 1);
+    request.onupgradeneeded = function(event) {
+      db = event.target.result;
+      if (!db.objectStoreNames.contains("vehiculos")) db.createObjectStore("vehiculos", { keyPath: "placas" });
+     
+if (!db.objectStoreNames.contains("bitacoras")) db.createObjectStore("bitacoras", { keyPath: "vehiculo" });
+
+    };
+    request.onsuccess = function(event) { db = event.target.result; };
+
+    // Función auxiliar para leer todos los bitacoras
+    function obtenerTodos(storeName) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, "readonly");
+        const store = tx.objectStore(storeName);
+        const req = store.openCursor();
+        const lista = [];
+        req.onsuccess = function(e) {
+          const cursor = e.target.result;
+          if (cursor) {
+            lista.push(cursor.value);
+            cursor.continue();
+          } else {
+            resolve(lista);
+          }
+        };
+        req.onerror = function() { reject("Error leyendo " + storeName); };
+      });
+    }
+
+    // Función auxiliar para convertir archivos a base64
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+ }
+    // Login / Logout
+    function login() {
+      const user = document.getElementById("usuario").value;
+      const pass = document.getElementById("contrasena").value;
+
+      if (user === "coordinador" && pass === "1234") {
+        document.getElementById("login").style.display = "none";
+        document.getElementById("coordinador").style.display = "block";
+        mostrarVehiculos();
+      } else if (user === "auditor" && pass === "1234") {
+        document.getElementById("login").style.display = "none";
+        document.getElementById("auditor").style.display = "block";
+        cargarVehiculosEnSelect();
+        mostrarBitacoras();
+      } else {
+        alert("Usuario o contraseña incorrectos");
+      }
+    }
+
+    function logout() {
+      document.getElementById("coordinador").style.display = "none";
+      document.getElementById("auditor").style.display = "none";
+      document.getElementById("login").style.display = "block";
+      document.getElementById("usuario").value = "";
+      document.getElementById("contrasena").value = "";
+    }
+// Verificación de duplicados antes de guardar
+function guardarBitacorasAuditor(bitacoraCompleta) {
+  const tx = db.transaction("bitacoras", "readonly");
+  const store = tx.objectStore("bitacoras");
+  const req = store.get(bitacoraCompleta.vehiculo);
+
+  req.onsuccess = function() {
+    if (req.result) {
+      // Ya existe una bitácora para este vehículo
+      if (confirm(`El vehículo ${bitacoraCompleta.vehiculo} ya tiene una bitácora. ¿Desea reemplazarla?`)) {
+        const tx2 = db.transaction("bitacoras", "readwrite");
+        tx2.objectStore("bitacoras").put(bitacoraCompleta);
+        alert("Bitácora actualizada ✅");
+      } else {
+        alert("Guardado cancelado 🚫");
+      }
+    } else {
+      // No existe, se guarda nueva
+      const tx2 = db.transaction("bitacoras", "readwrite");
+      tx2.objectStore("bitacoras").put(bitacoraCompleta); // usar put en vez de add
+      alert("Bitácora guardada correctamente ✅");
+    }
+  };
+}
+
+
+
+// Guardar bitácora + reporte fotográfico juntos
+document.getElementById("form-bitacora").addEventListener("submit", async function(e) {
+  e.preventDefault();
+
+  const placas = document.getElementById("vehiculoSelect").value;
+  const tx = db.transaction("vehiculos", "readonly");
+  const store = tx.objectStore("vehiculos");
+  const req = store.get(placas);
+
+  req.onsuccess = async function() {
+    const v = req.result || {};
+
+    // Bitácora
+    const bitacora = {
+      municipio: v.municipio || "",
+      oficio: v.oficio || "",
+      vehiculo: placas,
+      resguardante: document.getElementById("resguardante").value,
+      localizado: document.getElementById("localizado").value,
+      odometro: document.getElementById("odometro").value,
+      estado: document.getElementById("estado").value,
+      funcionando: document.getElementById("funcionando").value,
+      fechaNoFunciona: document.getElementById("fechaNoFunciona").value,
+      observaciones: document.getElementById("observaciones").value
+    };
+
+    // Reporte fotográfico
+    const auditorFoto = document.getElementById("auditorFoto").value;
+    const conclusionesFoto = document.getElementById("conclusionesFoto").value;
+
+    const fotoSerieFile = document.getElementById("fotoSerie").files[0];
+    const fotoPlacasFile = document.getElementById("fotoPlacas").files[0];
+    const fotoFrenteFile = document.getElementById("fotoFrente").files[0];
+    const fotoTraseraFile = document.getElementById("fotoTrasera").files[0];
+
+    const reporte = {
+      auditorFoto,
+      conclusionesFoto,
+      fotoSerie: fotoSerieFile ? await fileToBase64(fotoSerieFile) : null,
+      fotoPlacas: fotoPlacasFile ? await fileToBase64(fotoPlacasFile) : null,
+      fotoFrente: fotoFrenteFile ? await fileToBase64(fotoFrenteFile) : null,
+      fotoTrasera: fotoTraseraFile ? await fileToBase64(fotoTraseraFile) : null
+    };
+
+  // Bitacoras combinado
+const bitacoraCompleta = { ...bitacora, ...reporte };
+guardarBitacorasAuditor(bitacoraCompleta);
+
+alert("Bitácora y reporte fotográfico guardados juntos ✅");
+mostrarBitacoras();
+  };
+});
+
+
+async function cargarExcelVehiculos() {
+  const input = document.getElementById("excelVehiculos");
+  if (!input.files.length) {
+    alert("Seleccione un archivo Excel primero");
+    return;
+  }
+
+  const file = input.files[0];
+  const data = await file.arrayBuffer();
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(data);
+
+  const sheet = workbook.worksheets[0]; // primera hoja
+  const tx = db.transaction("vehiculos", "readwrite");
+  const store = tx.objectStore("vehiculos");
+
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return; // saltar encabezados
+    const vehiculo = {
+      municipio: row.getCell(1).value || "",
+      oficio: row.getCell(2).value || "",
+      placas: row.getCell(3).value || "",
+      tipo: row.getCell(4).value || "",
+      marca: row.getCell(5).value || "",
+      modelo: row.getCell(6).value || ""
+    };
+    if (vehiculo.placas) store.put(vehiculo);
+  });
+
+  tx.oncomplete = () => {
+    alert("Vehículos cargados correctamente 🚗");
+    mostrarVehiculos();
+    cargarVehiculosEnSelect();
+  };
+}
+
+
+
+// Mostrar lista de vehículos en la vista del coordinador
+function mostrarVehiculos() {
+  const tx = db.transaction("vehiculos", "readonly");
+  const store = tx.objectStore("vehiculos");
+  const req = store.openCursor();
+
+  let html = "<h3>Vehículos cargados</h3><ul>";
+  req.onsuccess = function(e) {
+    const cursor = e.target.result;
+    if (cursor) {
+      const v = cursor.value;
+      html += `<li>${v.municipio} - ${v.placas} - ${v.tipo} - ${v.marca} - ${v.modelo}</li>`;
+      cursor.continue();
+    } else {
+      html += "</ul>";
+      document.getElementById("listaVehiculos").innerHTML = html;
+
+      // 🔑 refrescar también el select del auditor
+      cargarVehiculosEnSelect();
+    }
+  };
+}
+
+// Cargar vehículos en el select del auditor
+function cargarVehiculosEnSelect() {
+  const tx = db.transaction("vehiculos", "readonly");
+  const store = tx.objectStore("vehiculos");
+  const req = store.openCursor();
+
+  const select = document.getElementById("vehiculoSelect");
+  select.innerHTML = "";
+  req.onsuccess = function(e) {
+    const cursor = e.target.result;
+    if (cursor) {
+      const v = cursor.value;
+      const option = document.createElement("option");
+      option.value = v.placas;
+      option.text = `${v.placas} - ${v.tipo} - ${v.marca}`;
+      // guardamos municipio y oficio en atributos del option
+      option.dataset.municipio = v.municipio;
+      option.dataset.oficio = v.oficio;
+      select.appendChild(option);
+      cursor.continue();
+    }
+  };
+
+  // Cuando el auditor cambia de vehículo, se actualizan los campos fijos
+  select.onchange = function() {
+    const selectedOption = select.options[select.selectedIndex];
+    document.getElementById("municipio").value = selectedOption.dataset.municipio || "";
+    document.getElementById("oficio").value = selectedOption.dataset.oficio || "";
+limpiarCamposAuditor(); // 🔑 vacía los campos al cambiar vehículo
+  };
+}
+
+
+function limpiarCamposAuditor() {
+  document.getElementById("resguardante").value = "";
+  document.getElementById("localizado").value = "Sí";
+  document.getElementById("odometro").value = "Sí";
+  document.getElementById("estado").value = "Bueno";
+  document.getElementById("funcionando").value = "Sí";
+  document.getElementById("fechaNoFunciona").value = "";
+  document.getElementById("observaciones").value = "";
+  document.getElementById("auditorFoto").value = "";
+  document.getElementById("conclusionesFoto").value = "";
+  document.getElementById("fotoSerie").value = "";
+  document.getElementById("fotoPlacas").value = "";
+  document.getElementById("fotoFrente").value = "";
+  document.getElementById("fotoTrasera").value = "";
+}
+
+function mostrarBitacoras() {
+  const tx = db.transaction("bitacoras", "readonly");
+  const store = tx.objectStore("bitacoras");
+  const req = store.openCursor();
+
+  let htmlBitacora = "<h3>Bitacoras guardados</h3><ul>";
+  let htmlReportes = "<h3>Bitacoras fotográficos</h3><ul>";
+
+  req.onsuccess = function(e) {
+    const cursor = e.target.result;
+    if (cursor) {
+      const r = cursor.value;
+      // Lista de bitácora (resumen operativo)
+      htmlBitacora += `<li>${r.vehiculo} — ${r.resguardante || "Sin resguardante"} — ${r.estado} — ${r.funcionando}</li>`;
+      // Lista de reportes (quién y conclusiones)
+      htmlReportes += `<li>${r.vehiculo} — Auditor: ${r.auditorFoto || "Sin auditor"} — ${r.conclusionesFoto ? r.conclusionesFoto.slice(0, 40) + "…" : "Sin conclusiones"}</li>`;
+      cursor.continue();
+    } else {
+      htmlBitacora += "</ul>";
+      htmlReportes += "</ul>";
+      document.getElementById("listaBitacora").innerHTML = htmlBitacora;
+      document.getElementById("listaReportes").innerHTML = htmlReportes;
+    }
+  };
+}
+
+    // Exportar Excel con imágenes incrustadas
+   async function exportarExcelConImagenes() {
+  const workbook = new ExcelJS.Workbook();
+
+  // Hoja Bitácoras
+  const sheet = workbook.addWorksheet("Bitácoras");
+  sheet.addRow(["Municipio", "Vehículo", "Resguardante", "Localizado", "Odómetro", "Estado", "Funcionando", "Observaciones"]);
+
+  const bitacoras = await obtenerTodos("bitacoras");
+  bitacoras.forEach(r => {
+    sheet.addRow([
+      r.municipio,
+      r.vehiculo,
+      r.resguardante,
+      r.localizado,
+      r.odometro,
+      r.estado,
+      r.funcionando,
+      r.observaciones
+    ]);
+  });
+
+  // Hoja Reportes Fotográficos
+  const sheetRep = workbook.addWorksheet("Reportes Fotográficos");
+  sheetRep.addRow(["Municipio", "Oficio", "Auditor", "Conclusiones", "Fotos"]);
+
+  for (const r of bitacoras) {
+    const row = sheetRep.addRow([r.municipio, r.oficio, r.auditorFoto, r.conclusionesFoto]);
+
+    let col = 4;
+    for (const campo of ["fotoSerie", "fotoPlacas", "fotoFrente", "fotoTrasera"]) {
+      if (r[campo]) {
+        const imageId = workbook.addImage({
+          base64: r[campo],
+          extension: "png"
+        });
+        sheetRep.addImage(imageId, {
+          tl: { col: col, row: row.number },
+          ext: { width: 120, height: 90 }
+        });
+        col++;
+      }
+    }
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  saveAs(new Blob([buffer]), "InspeccionVehicular.xlsx");
+}
+
+
+    // Borrar toda la información
+    function borrarTodo() {
+      const stores = ["vehiculos","bitacoras"];
+      stores.forEach(s => {
+        const tx = db.transaction(s, "readwrite");
+        tx.objectStore(s).clear();
+      });
+      alert("Toda la información ha sido borrada 🗑️");
+      mostrarVehiculos();
+      mostrarBitacoras();
+    }
+
+    // Registrar Service Worker
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("service-worker.js")
+        .then(() => console.log("Service Worker registrado"))
+        .catch(err => console.error("Error al registrar SW:", err));
+    }
+  </script>
+</body>
+</html>

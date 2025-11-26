@@ -1,0 +1,22 @@
+{
+  "name": "Auditoría Vehicular",
+  "short_name": "Auditoría",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#004080",
+  "orientation": "portrait",
+  "scope": "./",
+  "icons": [
+    {
+      "src": "icons/logo-ofs.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/logo-ofs.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
