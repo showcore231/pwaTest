@@ -225,17 +225,22 @@ document.getElementById("form-bitacora").addEventListener("submit", async functi
     const v = req.result || {};
 
     // Bitácora
-    const bitacora = {
-      municipio: v.municipio || "",
-      oficio: v.oficio || "",
-      vehiculo: placas,
-      resguardante: document.getElementById("resguardante").value,
-      localizado: document.getElementById("localizado").value,
-      odometro: document.getElementById("odometro").value,
-      estado: document.getElementById("estado").value,
-      funcionando: document.getElementById("funcionando").value,
-      fechaNoFunciona: document.getElementById("fechaNoFunciona").value,
-      observaciones: document.getElementById("observaciones").value
+const bitacora = {
+  municipio: v.municipio || "",
+  oficio: v.oficio || "",
+  vehiculo: placas,
+  tipo: v.tipo || "",
+  marca: v.marca || "",
+  modelo: v.modelo || "",
+  serie: v.serie || "",
+  ubicacion: v.ubicacion || "",
+  resguardante: document.getElementById("resguardante").value,
+  localizado: document.getElementById("localizado").value,
+  odometro: document.getElementById("odometro").value,
+  estado: document.getElementById("estado").value,
+  funcionando: document.getElementById("funcionando").value,
+  fechaNoFunciona: document.getElementById("fechaNoFunciona").value,
+  observaciones: document.getElementById("observaciones").value
     };
 
     // Reporte fotográfico
@@ -290,7 +295,9 @@ async function cargarExcelVehiculos() {
       placas: row.getCell(3).value || "",
       tipo: row.getCell(4).value || "",
       marca: row.getCell(5).value || "",
-      modelo: row.getCell(6).value || ""
+      modelo: row.getCell(6).value || "",
+      serie: row.getCell(7).value || "",
+      ubicacion: row.getCell(8).value || ""
     };
     if (vehiculo.placas) store.put(vehiculo);
   });
@@ -315,7 +322,7 @@ function mostrarVehiculos() {
     const cursor = e.target.result;
     if (cursor) {
       const v = cursor.value;
-      html += `<li>${v.municipio} - ${v.placas} - ${v.tipo} - ${v.marca} - ${v.modelo}</li>`;
+      html += `<li>${v.municipio} - ${v.placas} - ${v.tipo} - ${v.marca} - ${v.modelo} - ${v.serie} - ${v.ubicacion}</li>`;
       cursor.continue();
     } else {
       html += "</ul>";
@@ -341,7 +348,7 @@ function cargarVehiculosEnSelect() {
       const v = cursor.value;
       const option = document.createElement("option");
       option.value = v.placas;
-      option.text = `${v.placas} - ${v.tipo} - ${v.marca}`;
+      option.text = `${v.placas} - ${v.tipo} - ${v.marca} - ${v.modelo} - ${v.serie} - ${v.ubicacion}`;
       // guardamos municipio y oficio en atributos del option
       option.dataset.municipio = v.municipio;
       option.dataset.oficio = v.oficio;
@@ -381,75 +388,146 @@ function mostrarBitacoras() {
   const store = tx.objectStore("bitacoras");
   const req = store.openCursor();
 
-  let htmlBitacora = "<h3>Bitacoras guardados</h3><ul>";
-  let htmlReportes = "<h3>Bitacoras fotográficos</h3><ul>";
+  let htmlBitacora = "<h3>Bitácoras guardadas</h3><div class='row'>";
+  let htmlReportes = "<h3>Reportes fotográficos</h3><div class='row'>";
 
   req.onsuccess = function(e) {
     const cursor = e.target.result;
     if (cursor) {
       const r = cursor.value;
-      // Lista de bitácora (resumen operativo)
-      htmlBitacora += `<li>${r.vehiculo} — ${r.resguardante || "Sin resguardante"} — ${r.estado} — ${r.funcionando}</li>`;
-      // Lista de reportes (quién y conclusiones)
-      htmlReportes += `<li>${r.vehiculo} — Auditor: ${r.auditorFoto || "Sin auditor"} — ${r.conclusionesFoto ? r.conclusionesFoto.slice(0, 40) + "…" : "Sin conclusiones"}</li>`;
+
+      // Tarjeta de bitácora
+      htmlBitacora += `
+        <div class="col-md-4">
+          <div class="card shadow mb-3">
+            <div class="card-body">
+              <h5 class="card-title">${r.vehiculo}</h5>
+              <p class="card-text">
+                <strong>Tipo:</strong> ${r.tipo || "N/A"}<br>
+                <strong>Marca:</strong> ${r.marca || "N/A"}<br>
+                <strong>Modelo:</strong> ${r.modelo || "N/A"}<br>
+                <strong>Serie:</strong> ${r.serie || "N/A"}<br>
+                <strong>Ubicación:</strong> ${r.ubicacion || "N/A"}<br>
+                <strong>Resguardante:</strong> ${r.resguardante || "Sin resguardante"}<br>
+                <strong>Estado:</strong> ${r.estado}<br>
+                <strong>Funcionando:</strong> ${r.funcionando}
+              </p>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Tarjeta de reporte fotográfico
+      htmlReportes += `
+        <div class="col-md-4">
+          <div class="card shadow mb-3">
+            <div class="card-body">
+              <h5 class="card-title">${r.vehiculo}</h5>
+              <p class="card-text">
+                <strong>Auditor:</strong> ${r.auditorFoto || "Sin auditor"}<br>
+                <strong>Conclusiones:</strong> ${r.conclusionesFoto ? r.conclusionesFoto.slice(0, 60) + "…" : "Sin conclusiones"}
+              </p>
+            </div>
+          </div>
+        </div>
+      `;
+
       cursor.continue();
     } else {
-      htmlBitacora += "</ul>";
-      htmlReportes += "</ul>";
+      htmlBitacora += "</div>";
+      htmlReportes += "</div>";
       document.getElementById("listaBitacora").innerHTML = htmlBitacora;
       document.getElementById("listaReportes").innerHTML = htmlReportes;
+
+      // 🔑 Mostrar también los vehículos registrados en cuadrícula
+      mostrarVehiculos();
     }
   };
 }
-
-    // Exportar Excel con imágenes incrustadas
-   async function exportarExcelConImagenes() {
+// 👉👉👉 AQUÍ INICIA exportarExcelConImagenes
+async function exportarExcelConImagenes() {
   const workbook = new ExcelJS.Workbook();
 
   // Hoja Bitácoras
   const sheet = workbook.addWorksheet("Bitácoras");
-  sheet.addRow(["Municipio", "Vehículo", "Resguardante", "Localizado", "Odómetro", "Estado", "Funcionando", "Observaciones"]);
+  sheet.addRow([
+    "Municipio","Oficio","Placas","Tipo","Marca","Modelo","Serie","Ubicación",
+    "Resguardante","Localizado","Odómetro","Estado","Funcionando","Observaciones"
+  ]);
 
   const bitacoras = await obtenerTodos("bitacoras");
   bitacoras.forEach(r => {
     sheet.addRow([
-      r.municipio,
-      r.vehiculo,
-      r.resguardante,
-      r.localizado,
-      r.odometro,
-      r.estado,
-      r.funcionando,
-      r.observaciones
+      r.municipio, r.oficio, r.vehiculo,
+      r.tipo || "", r.marca || "", r.modelo || "",
+      r.serie || "", r.ubicacion || "",
+      r.resguardante, r.localizado, r.odometro,
+      r.estado, r.funcionando, r.observaciones
     ]);
   });
 
   // Hoja Reportes Fotográficos
   const sheetRep = workbook.addWorksheet("Reportes Fotográficos");
-  sheetRep.addRow(["Municipio", "Oficio", "Auditor", "Conclusiones", "Fotos"]);
+  sheetRep.addRow([
+    "Municipio","Oficio","Placas","Tipo","Marca","Modelo","Serie","Ubicación",
+    "Auditor","Conclusiones","Foto Serie","Foto Placas","Foto Frente","Foto Trasera"
+  ]);
+
+  // Ajustar ancho de columnas y altura de filas
+  sheetRep.getColumn(11).width = 25;
+  sheetRep.getColumn(12).width = 25;
+  sheetRep.getColumn(13).width = 25;
+  sheetRep.getColumn(14).width = 25;
+
+  let fila = 2; // empezamos en la fila 2 (fila 1 son encabezados)
 
   for (const r of bitacoras) {
-    const row = sheetRep.addRow([r.municipio, r.oficio, r.auditorFoto, r.conclusionesFoto]);
+    // Datos del vehículo en la fila actual
+    sheetRep.addRow([
+      r.municipio, r.oficio, r.vehiculo,
+      r.tipo || "", r.marca || "", r.modelo || "",
+      r.serie || "", r.ubicacion || "",
+      r.auditorFoto, r.conclusionesFoto
+    ]);
 
-    let col = 4;
-    for (const campo of ["fotoSerie", "fotoPlacas", "fotoFrente", "fotoTrasera"]) {
-      if (r[campo]) {
-        const imageId = workbook.addImage({
-          base64: r[campo],
-          extension: "png"
-        });
-        sheetRep.addImage(imageId, {
-          tl: { col: col, row: row.number },
-          ext: { width: 120, height: 90 }
-        });
-        col++;
-      }
+    // Ajustar altura de fila para fotos
+    sheetRep.getRow(fila).height = 100;
+
+    // Incrustar fotos en celdas específicas (fila actual, columnas 11–14)
+    if (r.fotoSerie) {
+      const imgSerie = workbook.addImage({ base64: r.fotoSerie, extension: "png" });
+      sheetRep.addImage(imgSerie, { tl: { col: 10, row: fila - 1 }, ext: { width: 100, height: 80 } });
     }
+    if (r.fotoPlacas) {
+      const imgPlacas = workbook.addImage({ base64: r.fotoPlacas, extension: "png" });
+      sheetRep.addImage(imgPlacas, { tl: { col: 11, row: fila - 1 }, ext: { width: 100, height: 80 } });
+    }
+    if (r.fotoFrente) {
+      const imgFrente = workbook.addImage({ base64: r.fotoFrente, extension: "png" });
+      sheetRep.addImage(imgFrente, { tl: { col: 12, row: fila - 1 }, ext: { width: 100, height: 80 } });
+    }
+    if (r.fotoTrasera) {
+      const imgTrasera = workbook.addImage({ base64: r.fotoTrasera, extension: "png" });
+      sheetRep.addImage(imgTrasera, { tl: { col: 13, row: fila - 1 }, ext: { width: 100, height: 80 } });
+    }
+
+    fila++; // avanzar a la siguiente fila para el siguiente vehículo
   }
 
+  // Guardar archivo
   const buffer = await workbook.xlsx.writeBuffer();
   saveAs(new Blob([buffer]), "InspeccionVehicular.xlsx");
 }
+// 👉👉👉 AQUÍ TERMINA exportarExcelConImagenes
+
+
+
+
+
+
+
+
+
 
 
     // Borrar toda la información
